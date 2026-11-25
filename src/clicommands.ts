@@ -21,7 +21,8 @@ import { diffFileDependencyHash } from "./scripts/dependencydiff";
 import { EngineCache } from "./3d/modeltothree";
 import { cacheFileJsonModes } from "./parser/jsondecoders";
 import { preloadDeobs } from "./scripts/preloaddeobs";
-
+import { exportAllCollisionLua } from "./scripts/exportcollision";
+import { exportBlockingLocs } from "./scripts/exportblockinglocs";
 
 export type CliApiContext = {
 	getFs(name: string): ScriptFS,
@@ -349,6 +350,54 @@ export function cliApi(ctx: CliApiContext) {
 		}
 	});
 
+	const exportcollision = command({
+		name: "exportcollision",
+		args: {
+			...filesource,
+			out: option({ long: "out", type: cmdts.string }),
+			minx: option({ long: "minx", type: cmdts.number, defaultValue: () => -1 }),
+			maxx: option({ long: "maxx", type: cmdts.number, defaultValue: () => -1 }),
+			minz: option({ long: "minz", type: cmdts.number, defaultValue: () => -1 }),
+			maxz: option({ long: "maxz", type: cmdts.number, defaultValue: () => -1 }),
+			overwrite: flag({ long: "overwrite" })
+		},
+		async handler(args) {
+			const source = await args.source();
+			try {
+				await exportAllCollisionLua(source, {
+					outputDir: args.out,
+					minX: args.minx < 0 ? undefined : args.minx,
+					maxX: args.maxx < 0 ? undefined : args.maxx,
+					minZ: args.minz < 0 ? undefined : args.minz,
+					maxZ: args.maxz < 0 ? undefined : args.maxz,
+					overwrite: args.overwrite
+				});
+			} finally {
+				source.close();
+			}
+		}
+	});
+
+	const exportblockinglocs = command({
+		name: "exportblockinglocs",
+		args: {
+			...filesource,
+			out: option({
+				long: "out",
+				type: cmdts.string
+			})
+		},
+		async handler(args) {
+			const source = await args.source();
+
+			try {
+				await exportBlockingLocs(source, args.out);
+			} finally {
+				source.close();
+			}
+		}
+	});
+
 	let subcommands = cmdts.subcommands({
 		name: "",
 		cmds: {
@@ -367,7 +416,9 @@ export function cliApi(ctx: CliApiContext) {
 			cluecoords,
 			sequencegroups,
 			gameinterfaces,
-			clientscriptmodule
+			clientscriptmodule,
+			exportcollision,
+			exportblockinglocs
 		}
 	});
 

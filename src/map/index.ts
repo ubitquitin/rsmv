@@ -16,6 +16,7 @@ import { MipScheduler } from "./mipper";
 import { crc32addInt } from "../libs/crc32util";
 import { ChunkrenderContext, ImgNameInfoZoom, MaprenderSquare, MaprenderSquareLoaded, rendermodes, RenderResult, RenderTask } from "./layers";
 import { VariantGroup, VariantInfo, VariantResolver } from "./varianttracker";
+import { exportCollisionLua } from "./collisionimage";
 
 type RenderedMapVersionMeta = {
 	buildnr: number,
@@ -325,7 +326,12 @@ export class MapRenderer {
 		}
 		if (!square) {
 			this.loadcallback?.(x, z, "loading");
-			let parseprom = parseMapsquare(this.scenecache.engine, x, z, this.opts);
+			let parseprom = parseMapsquare(
+				this.scenecache.engine,
+				x,
+				z,
+				{ ...this.opts, collision: true }
+			);
 			let id = this.idcounter++;
 			square = {
 				id,
@@ -337,7 +343,53 @@ export class MapRenderer {
 				loaded: null,
 				loadprom: parseprom.then(),
 			}
-			parseprom.then(res => square!.parsed = res);
+			
+			parseprom.then(res => {
+				square!.parsed = res;
+
+				const regionX = x;
+				const regionZ = z;
+				const plane = 0;
+
+				// Only export one specific 64x64 map square.
+				if (regionX === 50 && regionZ === 50) {
+					const rect = {
+						x: regionX * 64,
+						z: regionZ * 64,
+						xsize: 64,
+						zsize: 64
+					};
+
+					const lua = exportCollisionLua(
+						[res.grid],
+						rect,
+						plane
+					);
+
+					
+					const blob = new Blob([lua], {
+						type: "text/plain"
+					});
+
+					const url = URL.createObjectURL(blob);
+
+					const link = document.createElement("a");
+					link.href = url;
+					link.download = "collision_50_50_0.lua";
+
+					document.body.appendChild(link);
+					link.click();
+					link.remove();
+
+					setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+					console.log("[COLLISION] Exported Lumbridge:", lua.length, "characters");
+
+				}
+			}).catch(err => {
+				console.error("Collision export failed:", err);
+			});
+
 			this.squares.push(square);
 		}
 		if (needsmodels && !square.model) {

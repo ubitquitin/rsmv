@@ -4,13 +4,14 @@ import { EngineCache } from "../../3d/modeltothree";
 import { AsyncReturnType } from "../../utils";
 import { MapRender } from "../backends";
 import { ChunkRenderMeta, chunkSummary } from "../chunksummary";
-import { drawCollision } from "../collisionimage";
+import { drawCollision, exportCollisionLua } from "../collisionimage";
 import * as zlib from "zlib";
 import prettyJson from "json-stringify-pretty-compact";
 import { jsonIcons, svgfloor } from "../svgrender";
 import { rendermode3d, rendermodeInteractions } from "./3d";
 import { VariantInfo, VariantResolver } from "../varianttracker";
 import { RSMapChunk } from "../../3d/scene/mapchunk";
+import * as fs from "fs";
 
 
 type MaprenderSquareData = {
@@ -104,12 +105,36 @@ const rendermodeCollision: RenderMode<"collision"> = function ({ engine, config,
         dependencyhash: depcrc,
         datarect: loadedchunksrect,
         mippable: true,
+        
         async run2d(chunks) {
-            //TODO try enable 2d map render without loading all the 3d stuff
-            let grids = chunks.map(q => q.grid);
-            let file = drawCollision(grids, worldrect, layer.level, layer.pxpersquare, 1, format.ext as any);
+            const grids = chunks.map(q => q.grid);
+
+            const file = drawCollision(
+                grids,
+                worldrect,
+                layer.level,
+                layer.pxpersquare,
+                1,
+                format.ext as any
+            );
+
+            // Export the collision data as a Lua file.
+            const lua = exportCollisionLua(
+                grids,
+                worldrect,
+                layer.level
+            );
+
+            const filename =
+                `collision_${worldrect.x}_${worldrect.z}_${layer.level}.lua`;
+
+            fs.writeFileSync(filename, lua, "utf8");
+
+            console.log(`Exported collision data: ${filename}`);
+
             return { file: file };
         }
+
     }];
 }
 

@@ -62,3 +62,97 @@ export function drawCollision(grids: TileGridSource[], rect: MapRect, maplevel: 
 
 	return canvasToImageFile(cnv, format, 1);
 }
+
+
+
+export function exportCollisionLua(
+    grids: TileGridSource[],
+    rect: MapRect,
+    plane: number
+) {
+    const collisionRows: string[] = [];
+    const floorRows: string[] = [];
+    const settingsRows: string[] = [];
+
+    for (let z = rect.z; z < rect.z + rect.zsize; z++) {
+        const collisionValues: string[] = [];
+        const floorValues: string[] = [];
+        const settingsValues: string[] = [];
+
+        for (let x = rect.x; x < rect.x + rect.xsize; x++) {
+            let flags = 0;
+            let foundCollision = false;
+            let foundTile = false;
+            let floorMask = 0;
+            let terrainSettings = 0;
+
+            for (const grid of grids) {
+                const tile = grid.getTile(x, z, plane);
+                if (!tile) continue;
+
+                foundTile = true;
+
+                if (tile.underlayVisible) floorMask |= 1;
+                if (tile.overlayVisible) floorMask |= 2;
+                if (tile.rawUnderlay != null) floorMask |= 4;
+                if (tile.rawOverlay != null) floorMask |= 8;
+                if (tile.waterProps != null) floorMask |= 16;
+
+                terrainSettings |= tile.settings ?? 0;
+
+                const col = tile.effectiveCollision;
+                if (!col) continue;
+
+                foundCollision = true;
+
+                for (let i = 0; i < 9; i++) {
+                    if (col.walk[i]) {
+                        flags |= (1 << i);
+                    }
+                }
+            }
+
+            collisionValues.push(
+                foundCollision ? String(flags) : "-1"
+            );
+
+            floorValues.push(
+                foundTile ? String(floorMask) : "-1"
+            );
+
+            settingsValues.push(
+                foundTile ? String(terrainSettings) : "-1"
+            );
+        }
+
+        collisionRows.push(
+            "    {" + collisionValues.join(",") + "}"
+        );
+
+        floorRows.push(
+            "    {" + floorValues.join(",") + "}"
+        );
+
+        settingsRows.push(
+            "    {" + settingsValues.join(",") + "}"
+        );
+    }
+
+    return [
+        "return {",
+        `  originX = ${rect.x},`,
+        `  originZ = ${rect.z},`,
+        `  plane = ${plane},`,
+        "  tiles = {",
+        collisionRows.join(",\n"),
+        "  },",
+        "  floor = {",
+        floorRows.join(",\n"),
+        "  },",
+        "  terrainSettings = {",
+        settingsRows.join(",\n"),
+        "  }",
+        "}"
+    ].join("\n");
+}
+

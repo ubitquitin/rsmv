@@ -6,6 +6,7 @@ import { MapRect, ParsemapOpts, RSMapChunkData, renderMapSquare, WorldLocation, 
 import { AnimationMixer, Mesh, Object3D } from "three";
 import { svgfloor } from "../../map/svgrender";
 import { ThreeJsRenderer, ThreeJsSceneElement, ThreeJsSceneElementSource } from "../../viewer/threejsrender";
+import { exportCollisionLua } from "../../map/collisionimage";
 
 export class RSMapChunkGroup extends TypedEmitter<{ loaded: undefined, changed: undefined }> implements ThreeJsSceneElementSource {
     chunks: RSMapChunk[];
@@ -71,10 +72,69 @@ export class RSMapChunk extends TypedEmitter<{ loaded: RSMapChunkData, changed: 
         return opts;
     }
 
-    static create(cache: ThreejsSceneCache, chunkx: number, chunkz: number, extraopts?: ParsemapOpts) {
-        let opts = this.defaultopts(extraopts);
-        let preparsed = parseMapsquare(cache.engine, chunkx, chunkz, opts);
-        return new RSMapChunk(cache, preparsed, chunkx, chunkz, opts);
+    static create(
+        cache: ThreejsSceneCache,
+        chunkx: number,
+        chunkz: number,
+        extraopts?: ParsemapOpts
+    ) {
+        const opts = this.defaultopts(extraopts);
+
+        const preparsed = parseMapsquare(
+            cache.engine,
+            chunkx,
+            chunkz,
+            opts
+        );
+
+        // Export Lumbridge Castle's map square.
+        if (chunkx === 50 && chunkz === 50) {
+            preparsed.then(res => {
+                const lua = exportCollisionLua(
+                    [res.grid],
+                    {
+                        x: chunkx * 64,
+                        z: chunkz * 64,
+                        xsize: 64,
+                        zsize: 64
+                    },
+                    0
+                );
+
+                const blob = new Blob([lua], {
+                    type: "text/plain"
+                });
+
+                const url = URL.createObjectURL(blob);
+
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = `collision_${chunkx}_${chunkz}_0.lua`;
+
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+                console.log(
+                    "[COLLISION] Exported:",
+                    link.download,
+                    lua.length,
+                    "characters"
+                );
+            }).catch(err => {
+                console.error("[COLLISION] Export failed:", err);
+            });
+        }
+
+        return new RSMapChunk(
+            cache,
+            preparsed,
+            chunkx,
+            chunkz,
+            opts
+        );
     }
 
     //TODO remove
